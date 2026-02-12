@@ -788,6 +788,37 @@
 
         function openAddModal() { editingIndex = -1; document.getElementById('dataForm').reset(); document.getElementById('modalTitle').innerText = "เพิ่มข้อมูล"; document.getElementById('dataModal').classList.remove('hidden'); }
         function closeDataModal() { document.getElementById('dataModal').classList.add('hidden'); }
+        
+        function editRow(index) {
+            editingIndex = index;
+            const d = globalData[index];
+            document.getElementById('inpMonth').value = d.month;
+            document.getElementById('inpPsychCase').value = d.psych_case;
+            document.getElementById('inpPsychComp').value = parseCurrency(d.psych_comp);
+            document.getElementById('inpDetoxCase').value = d.detox_case;
+            document.getElementById('inpDetoxComp').value = parseCurrency(d.detox_comp);
+            document.getElementById('inpImcCase').value = d.imc_case;
+            document.getElementById('inpImcComp').value = parseCurrency(d.imc_comp);
+            document.getElementById('inpIncome').value = parseCurrency(d.income);
+            document.getElementById('inpExpense').value = parseCurrency(d.expense);
+            document.getElementById('inpHWCase').value = d.hw_case;
+            document.getElementById('inpHWComp').value = parseCurrency(d.hw_comp);
+            document.getElementById('modalTitle').innerText = "แก้ไขข้อมูล";
+            document.getElementById('dataModal').classList.remove('hidden');
+        }
+
+        function deleteRow(index) {
+            Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลนี้จะหายไป", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบข้อมูล' })
+            .then((result) => {
+                if (result.isConfirmed) {
+                    globalData.splice(index, 1);
+                    localStorage.setItem('hospitalDashboardData', JSON.stringify(globalData));
+                    renderDashboard();
+                    Swal.fire('Deleted!', 'ลบข้อมูลแล้ว', 'success');
+                }
+            });
+        }
+
         function saveData() {
             const newData = {
                 month: document.getElementById('inpMonth').value,
