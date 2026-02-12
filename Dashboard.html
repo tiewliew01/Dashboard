@@ -51,6 +51,12 @@
             </div>
             <div class="flex items-center space-x-3">
                 <span id="admin-status" class="text-sm bg-emerald-700 px-3 py-1 rounded-full hidden"><i class="fa-solid fa-user-shield"></i> Admin Mode</span>
+                
+                <!-- Settings Button -->
+                <button onclick="openSettingsModal()" class="text-emerald-100 hover:text-white transition" title="ตั้งค่า Google Sheet">
+                    <i class="fa-solid fa-gear text-xl"></i>
+                </button>
+
                 <button onclick="toggleLoginModal()" id="login-btn" class="bg-white text-emerald-600 hover:bg-emerald-50 px-4 py-2 rounded-lg text-sm font-semibold transition">
                     <i class="fa-solid fa-right-to-bracket"></i> Login
                 </button>
@@ -222,8 +228,15 @@
 
         </div>
 
+        <!-- Raw Data Locked Placeholder -->
+        <div id="rawDataLocked" class="card p-6 text-center py-10">
+            <i class="fa-solid fa-lock text-5xl mb-4 text-gray-300"></i>
+            <h3 class="text-xl font-bold text-emerald-800 mb-2">ตารางข้อมูลดิบ (Raw Data)</h3>
+            <p class="text-gray-500">สงวนสิทธิ์เฉพาะผู้ดูแลระบบ กรุณา <button onclick="toggleLoginModal()" class="text-emerald-600 font-bold underline hover:text-emerald-800">เข้าสู่ระบบ</button> เพื่อดูข้อมูล</p>
+        </div>
+
         <!-- Raw Data Table (Searchable) -->
-        <div class="card p-6">
+        <div id="rawDataCard" class="card p-6 hidden">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-bold text-emerald-800"><i class="fa-solid fa-table"></i> ตารางข้อมูลดิบ (Raw Data)</h3>
                 <div class="admin-controls">
@@ -236,7 +249,7 @@
                 <table id="mainDataTable">
                     <thead>
                         <tr>
-                            <th>Action</th>
+                            <th class="admin-controls">Action</th>
                             <th>เดือน/ปี</th>
                             <th>เคสจิตบำบัด</th>
                             <th>ชดเชยจิตบำบัด</th>
@@ -244,10 +257,10 @@
                             <th>ชดเชย Detox</th>
                             <th>เคส IMC</th>
                             <th>ชดเชย IMC</th>
-                            <th>รายได้รวม</th>
-                            <th>รายจ่ายรวม</th>
                             <th>เคส HW</th>
                             <th>ชดเชย HW</th>
+                            <th>รายได้รวม</th>
+                            <th>รายจ่ายรวม</th>
                         </tr>
                     </thead>
                     <tbody id="dataTableBody"></tbody>
@@ -257,7 +270,7 @@
 
     </div>
 
-    <!-- Login Modal, Add/Edit Modal (Same as before) -->
+    <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg shadow-xl w-96">
             <h2 class="text-2xl font-bold mb-4 text-emerald-700 text-center">เข้าสู่ระบบผู้ดูแล</h2>
@@ -269,6 +282,28 @@
             </div>
         </div>
     </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4 text-emerald-700 flex items-center">
+                <i class="fa-solid fa-gear mr-2"></i> ตั้งค่าการเชื่อมต่อ
+            </h2>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">ลิงก์ CSV จาก Google Sheet (Published to Web)</label>
+                <input type="text" id="sheetUrlInput" class="w-full border p-2 rounded focus:outline-emerald-500 text-sm" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
+                <p class="text-xs text-gray-500 mt-2">
+                    <i class="fa-solid fa-circle-info"></i> วิธีหาลิงก์: ไฟล์ > แชร์ > เผยแพร่ทางเว็บ > เลือก "ค่าที่คั่นด้วยเครื่องหมายจุลภาค (.csv)"
+                </p>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeSettingsModal()" class="text-gray-500 hover:text-gray-700 px-3 py-1 rounded">ปิด</button>
+                <button onclick="saveSettings()" class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 font-bold">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Data Modal -->
     <div id="dataModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 overflow-y-auto">
         <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg my-10">
             <h2 class="text-xl font-bold mb-4 text-emerald-700" id="modalTitle">เพิ่มข้อมูล</h2>
@@ -321,18 +356,29 @@
             if (savedData) {
                 globalData = JSON.parse(savedData);
             }
+            // Load saved Sheet URL
+            const savedUrl = localStorage.getItem('googleSheetUrl');
+            if(savedUrl) {
+                document.getElementById('sheetUrlInput').value = savedUrl;
+            }
             renderDashboard();
         });
 
         // --- Data Handling & Sorting ---
         function parseThaiDateScore(monthStr) {
-            if(!monthStr) return 0;
-            const parts = monthStr.trim().split(" ");
-            if(parts.length < 2) return 0;
-            const monthName = parts[0];
-            const yearStr = parts[1];
-            const monthNum = monthThMap[monthName] || 0;
-            const yearNum = parseInt(yearStr) || 0;
+            if (!monthStr) return 0;
+            let str = monthStr.trim();
+            let monthNum = 0;
+            let yearNum = 0;
+            for (const [key, val] of Object.entries(monthThMap)) {
+                if (str.startsWith(key)) {
+                    monthNum = val;
+                    let yearPart = str.replace(key, '').replace(/[^0-9]/g, '');
+                    if (yearPart) yearNum = parseInt(yearPart);
+                    break;
+                }
+            }
+            if (monthNum === 0) return 0;
             return (yearNum * 100) + monthNum;
         }
 
@@ -408,7 +454,7 @@
 
             Object.values(chartInstances).forEach(chart => chart.destroy());
 
-            // --- Chart Options for Vertical Bar ---
+            // --- Chart Options ---
             const verticalBarOpts = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -424,7 +470,7 @@
                 }
             };
 
-            // 1. Finance (Vertical)
+            // 1. Finance
             chartInstances['finance'] = new Chart(document.getElementById('chartFinance'), {
                 type: 'bar',
                 data: {
@@ -437,7 +483,7 @@
                 options: verticalBarOpts
             });
 
-            // 2. Ratio (Horizontal Bar)
+            // 2. Ratio
             chartInstances['ratio'] = new Chart(document.getElementById('chartRatio'), {
                 type: 'bar',
                 data: {
@@ -476,33 +522,20 @@
                 }
             });
 
-            // 3. Psychotherapy (Mixed: Bar=Comp, Line=Case)
+            // 3. Psychotherapy
             chartInstances['psych'] = new Chart(document.getElementById('chartPsych'), {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [
                         { 
-                            label: 'ยอดชดเชย (บาท)', 
-                            data: psychComps, 
-                            type: 'bar',
-                            yAxisID: 'y1', 
-                            backgroundColor: '#A5B4FC', // Pastel Indigo
-                            borderRadius: 4, 
-                            order: 2,
+                            label: 'รายได้ที่คาดว่าจะได้รับ (บาท)', data: psychComps, type: 'bar', yAxisID: 'y1', 
+                            backgroundColor: '#A5B4FC', borderRadius: 4, order: 2,
                             datalabels: { color: 'white', anchor: 'end', align: 'start', formatter: formatLabel } 
                         },
                         { 
-                            label: 'จำนวนเคส', 
-                            data: psychCases, 
-                            type: 'line',
-                            yAxisID: 'y', 
-                            backgroundColor: '#F97316', // Bright Orange
-                            borderColor: '#F97316',
-                            borderWidth: 3,
-                            fill: false,
-                            tension: 0.4,
-                            order: 1,
+                            label: 'จำนวนเคส', data: psychCases, type: 'line', yAxisID: 'y', 
+                            backgroundColor: '#F97316', borderColor: '#F97316', borderWidth: 3, fill: false, tension: 0.4, order: 1,
                             datalabels: { color: '#F97316', backgroundColor:'white', borderRadius:4, anchor: 'top', align: 'top' } 
                         }
                     ]
@@ -518,35 +551,22 @@
                     }
                 }
             });
-            generateTable('tablePsych', sortedData, ['month', 'psych_case', 'psych_comp'], ['เดือน', 'เคส', 'ชดเชย']);
+            generateTable('tablePsych', sortedData, ['month', 'psych_case', 'psych_comp'], ['เดือน', 'เคส', 'รายได้ที่คาดว่าจะได้รับ']);
 
-            // 4. HW (Mixed: Bar=Comp, Line=Case)
+            // 4. HW
             chartInstances['hw'] = new Chart(document.getElementById('chartHW'), {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [
                         { 
-                            label: 'ชดเชย HW', 
-                            data: hwComps, 
-                            type: 'bar',
-                            yAxisID: 'y1',
-                            backgroundColor: '#6EE7B7', // Pastel Green
-                            borderRadius: 4,
-                            order: 2,
+                            label: 'ชดเชย HW', data: hwComps, type: 'bar', yAxisID: 'y1',
+                            backgroundColor: '#6EE7B7', borderRadius: 4, order: 2,
                             datalabels: { color: 'white', anchor: 'end', align: 'start', formatter: formatLabel }
                         },
                         { 
-                            label: 'เคส HW', 
-                            data: hwCases, 
-                            type: 'line',
-                            yAxisID: 'y',
-                            backgroundColor: '#EC4899', // Bright Pink
-                            borderColor: '#EC4899',
-                            borderWidth: 3,
-                            fill: false,
-                            tension: 0.4,
-                            order: 1,
+                            label: 'เคส HW', data: hwCases, type: 'line', yAxisID: 'y',
+                            backgroundColor: '#EC4899', borderColor: '#EC4899', borderWidth: 3, fill: false, tension: 0.4, order: 1,
                             datalabels: { color: '#EC4899', backgroundColor:'white', borderRadius:4, anchor: 'top', align: 'top' }
                         }
                     ]
@@ -564,7 +584,7 @@
             });
             generateTable('tableHW', sortedData, ['month', 'hw_case', 'hw_comp'], ['เดือน', 'เคส', 'ชดเชย']);
 
-            // 5. Detox & IMC Cases (Vertical Bar)
+            // 5. Detox & IMC Cases
             chartInstances['detoxCase'] = new Chart(document.getElementById('chartDetoxIMCCase'), {
                 type: 'bar',
                 data: {
@@ -584,7 +604,7 @@
             });
             generateTable('tableDetoxIMCCase', sortedData, ['month', 'detox_case', 'imc_case'], ['เดือน', 'เคส Detox', 'เคส IMC']);
 
-            // 6. Detox & IMC Revenue Trend (Line Chart)
+            // 6. Detox & IMC Revenue Trend
             chartInstances['detoxRev'] = new Chart(document.getElementById('chartDetoxIMCRev'), {
                 type: 'line',
                 data: {
@@ -647,13 +667,34 @@
         function renderMainTable(data) {
             const tbody = document.getElementById('dataTableBody');
             tbody.innerHTML = '';
+
+            let totals = {
+                psych_case: 0, psych_comp: 0,
+                detox_case: 0, detox_comp: 0,
+                imc_case: 0, imc_comp: 0,
+                income: 0, expense: 0,
+                hw_case: 0, hw_comp: 0
+            };
+
             data.forEach((row) => {
+                // Accumulate totals
+                totals.psych_case += parseCurrency(row.psych_case);
+                totals.psych_comp += parseCurrency(row.psych_comp);
+                totals.detox_case += parseCurrency(row.detox_case);
+                totals.detox_comp += parseCurrency(row.detox_comp);
+                totals.imc_case += parseCurrency(row.imc_case);
+                totals.imc_comp += parseCurrency(row.imc_comp);
+                totals.income += parseCurrency(row.income);
+                totals.expense += parseCurrency(row.expense);
+                totals.hw_case += parseCurrency(row.hw_case);
+                totals.hw_comp += parseCurrency(row.hw_comp);
+
                 const globalIndex = globalData.indexOf(row);
                 let tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="admin-controls">
-                        <button onclick="editRow(${globalIndex})" class="text-blue-500 hover:text-blue-700 mx-1"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button onclick="deleteRow(${globalIndex})" class="text-red-500 hover:text-red-700 mx-1"><i class="fa-solid fa-trash"></i></button>
+                    <td class="admin-controls text-center">
+                        <button onclick="editRow(${globalIndex})" class="text-blue-500 hover:text-blue-700 mx-1" title="แก้ไข"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteRow(${globalIndex})" class="text-red-500 hover:text-red-700 mx-1" title="ลบ"><i class="fa-solid fa-trash"></i></button>
                     </td>
                     <td>${row.month}</td>
                     <td>${row.psych_case}</td>
@@ -662,18 +703,53 @@
                     <td>${formatCurrency(row.detox_comp)}</td>
                     <td>${row.imc_case}</td>
                     <td>${formatCurrency(row.imc_comp)}</td>
-                    <td class="text-green-600 font-bold">${formatCurrency(row.income)}</td>
-                    <td class="text-red-500 font-bold">${formatCurrency(row.expense)}</td>
                     <td>${row.hw_case}</td>
                     <td>${formatCurrency(row.hw_comp)}</td>
+                    <td class="text-green-600 font-bold">${formatCurrency(row.income)}</td>
+                    <td class="text-red-500 font-bold">${formatCurrency(row.expense)}</td>
                 `;
                 tbody.appendChild(tr);
             });
+
+            // Append Total Row
+            let totalTr = document.createElement('tr');
+            totalTr.className = "bg-emerald-100 font-bold border-t-2 border-emerald-200";
+            totalTr.innerHTML = `
+                <td class="admin-controls p-2"></td>
+                <td class="p-2 text-center">รวม</td>
+                <td class="p-2 text-center">${totals.psych_case}</td>
+                <td class="p-2 text-center">${formatCurrency(totals.psych_comp)}</td>
+                <td class="p-2 text-center">${totals.detox_case}</td>
+                <td class="p-2 text-center">${formatCurrency(totals.detox_comp)}</td>
+                <td class="p-2 text-center">${totals.imc_case}</td>
+                <td class="p-2 text-center">${formatCurrency(totals.imc_comp)}</td>
+                <td class="p-2 text-center">${totals.hw_case}</td>
+                <td class="p-2 text-center">${formatCurrency(totals.hw_comp)}</td>
+                <td class="p-2 text-center text-green-700">${formatCurrency(totals.income)}</td>
+                <td class="p-2 text-center text-red-600">${formatCurrency(totals.expense)}</td>
+            `;
+            tbody.appendChild(totalTr);
+
             updateAdminView();
         }
 
-        // --- Auth & CRUD ---
+        // --- Auth & CRUD & Settings ---
         function toggleLoginModal() { document.getElementById('loginModal').classList.toggle('hidden'); }
+        
+        // Settings Logic
+        function openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+        function saveSettings() {
+            const url = document.getElementById('sheetUrlInput').value;
+            if(url) {
+                localStorage.setItem('googleSheetUrl', url);
+                Swal.fire({icon: 'success', title: 'บันทึกเรียบร้อย', showConfirmButton: false, timer: 1000});
+                closeSettingsModal();
+            } else {
+                Swal.fire('แจ้งเตือน', 'กรุณาระบุ URL', 'warning');
+            }
+        }
+
         function login() {
             const u = document.getElementById('username').value;
             const p = document.getElementById('password').value;
@@ -695,33 +771,22 @@
                 document.getElementById('login-btn').classList.add('hidden');
                 document.getElementById('logout-btn').classList.remove('hidden');
                 document.getElementById('admin-status').classList.remove('hidden');
+                
+                document.getElementById('rawDataCard').classList.remove('hidden');
+                document.getElementById('rawDataLocked').classList.add('hidden');
             } else {
                 adminControls.forEach(el => el.style.display = 'none');
                 document.getElementById('admin-actions').style.display = 'none';
                 document.getElementById('login-btn').classList.remove('hidden');
                 document.getElementById('logout-btn').classList.add('hidden');
                 document.getElementById('admin-status').classList.add('hidden');
+                
+                document.getElementById('rawDataCard').classList.add('hidden');
+                document.getElementById('rawDataLocked').classList.remove('hidden');
             }
         }
 
         function openAddModal() { editingIndex = -1; document.getElementById('dataForm').reset(); document.getElementById('modalTitle').innerText = "เพิ่มข้อมูล"; document.getElementById('dataModal').classList.remove('hidden'); }
-        function editRow(index) {
-            editingIndex = index;
-            const d = globalData[index];
-            document.getElementById('inpMonth').value = d.month;
-            document.getElementById('inpPsychCase').value = d.psych_case;
-            document.getElementById('inpPsychComp').value = parseCurrency(d.psych_comp);
-            document.getElementById('inpDetoxCase').value = d.detox_case;
-            document.getElementById('inpDetoxComp').value = parseCurrency(d.detox_comp);
-            document.getElementById('inpImcCase').value = d.imc_case;
-            document.getElementById('inpImcComp').value = parseCurrency(d.imc_comp);
-            document.getElementById('inpIncome').value = parseCurrency(d.income);
-            document.getElementById('inpExpense').value = parseCurrency(d.expense);
-            document.getElementById('inpHWCase').value = d.hw_case;
-            document.getElementById('inpHWComp').value = parseCurrency(d.hw_comp);
-            document.getElementById('modalTitle').innerText = "แก้ไขข้อมูล";
-            document.getElementById('dataModal').classList.remove('hidden');
-        }
         function closeDataModal() { document.getElementById('dataModal').classList.add('hidden'); }
         function saveData() {
             const newData = {
@@ -744,37 +809,53 @@
             renderDashboard();
             Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500 });
         }
-        function deleteRow(index) {
-            Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลนี้จะหายไป", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบข้อมูล' })
-            .then((result) => {
-                if (result.isConfirmed) {
-                    globalData.splice(index, 1);
-                    localStorage.setItem('hospitalDashboardData', JSON.stringify(globalData));
-                    renderDashboard();
-                    Swal.fire('Deleted!', 'ลบข้อมูลแล้ว', 'success');
+
+        // --- Fetch Data ---
+        function fetchGoogleSheet() {
+            const url = localStorage.getItem('googleSheetUrl');
+            
+            if (!url) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ยังไม่ได้ตั้งค่า',
+                    text: 'กรุณากดปุ่มฟันเฟือง (ตั้งค่า) เพื่อใส่ลิงก์ Google Sheet CSV ของคุณก่อน',
+                    confirmButtonText: 'ไปตั้งค่า'
+                }).then((result) => {
+                    if(result.isConfirmed) openSettingsModal();
+                });
+                return;
+            }
+
+            Swal.fire({ title: 'กำลังดึงข้อมูล...', didOpen: () => { Swal.showLoading() } });
+            Papa.parse(url, {
+                download: true, header: true,
+                complete: function(results) { 
+                    if(results.data && results.data.length > 0) {
+                        processParsedData(results.data); 
+                        Swal.fire('สำเร็จ', 'ดึงข้อมูลเรียบร้อย', 'success'); 
+                    } else {
+                        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลในไฟล์ หรือรูปแบบไม่ถูกต้อง', 'error');
+                    }
+                },
+                error: function(err) { 
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เชื่อมต่อล้มเหลว',
+                        text: 'ตรวจสอบลิงก์ หรือสิทธิ์การเข้าถึง (Publish to Web)',
+                        footer: 'ต้องเป็นลิงก์ .csv เท่านั้น'
+                    });
                 }
             });
         }
-
-        const SHEET_ID = '1g5X--E74vYvMGGtn_B_3-_ffj2KNL7MzcUrhJMnCG0s';
-        const GID = '1363638762';
-        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
-
-        function fetchGoogleSheet() {
-            Swal.fire({ title: 'กำลังดึงข้อมูล...', didOpen: () => { Swal.showLoading() } });
-            Papa.parse(CSV_URL, {
-                download: true, header: true,
-                complete: function(results) { processParsedData(results.data); Swal.fire('สำเร็จ', 'ดึงข้อมูลเรียบร้อย', 'success'); },
-                error: function(err) { Swal.fire('Error', 'ไม่สามารถเชื่อมต่อ Google Sheet ได้ กรุณาใช้ไฟล์ CSV', 'error'); }
-            });
-        }
+        
         function handleFileUpload(input) {
             const file = input.files[0];
             if (!file) return;
             Papa.parse(file, { header: true, complete: function(results) { processParsedData(results.data); Swal.fire('สำเร็จ', 'นำเข้าข้อมูลเรียบร้อย', 'success'); } });
         }
+        
         function processParsedData(rawData) {
-            const mappedData = rawData.filter(row => row['เดือน /ปี']).map(row => ({
+            const mappedData = rawData.filter(row => row['เดือน /ปี'] || row['เดือน/ปี']).map(row => ({
                 month: row['เดือน /ปี'] || row['เดือน/ปี'] || '',
                 psych_case: row['จำนวนเคสจิตบำบัด'] || 0,
                 psych_comp: row['ชดเชยจิตบำบัด'] || 0,
@@ -791,8 +872,8 @@
         }
         function exportCSV() {
             const csvRows = [];
-            csvRows.push(['เดือน /ปี','จำนวนเคสจิตบำบัด','ชดเชยจิตบำบัด','จำนวนเคส Detox','ชดเชย Detox','จำนวนเคส IMC','ชดเชย IMC','รายได้รวม','รายจ่ายรวม','จำนวนเคส HW','ชดเชย HW']);
-            globalData.forEach(row => { csvRows.push([row.month, row.psych_case, row.psych_comp, row.detox_case, row.detox_comp, row.imc_case, row.imc_comp, row.income, row.expense, row.hw_case, row.hw_comp]); });
+            csvRows.push(['เดือน /ปี','จำนวนเคสจิตบำบัด','ชดเชยจิตบำบัด','จำนวนเคส Detox','ชดเชย Detox','จำนวนเคส IMC','ชดเชย IMC','จำนวนเคส HW','ชดเชย HW','รายได้รวม','รายจ่ายรวม']);
+            globalData.forEach(row => { csvRows.push([row.month, row.psych_case, row.psych_comp, row.detox_case, row.detox_comp, row.imc_case, row.imc_comp, row.hw_case, row.hw_comp, row.income, row.expense]); });
             let csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.join(",")).join("\n");
             var encodedUri = encodeURI(csvContent);
             var link = document.createElement("a");
